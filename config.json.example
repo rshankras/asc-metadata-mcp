@@ -1,0 +1,5 @@
+{
+    "issuerID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "privateKeyID": "XXXXXXXXXX",
+    "privateKeyPath": "/Users/you/.appstoreconnect/AuthKey_XXXXXXXXXX.p8"
+}
