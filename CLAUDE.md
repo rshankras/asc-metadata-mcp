@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Swift MCP (Model Context Protocol) server that lets Claude Code read and update App Store Connect metadata, and check app analytics and performance. It exposes 14 tools over stdio transport: metadata tools (list_apps, get_metadata, update_name, update_keywords, update_description, update_promo_text, update_whats_new, list_locales, bulk_update, create_version) and analytics/performance tools (get_perf_metrics, get_diagnostics, setup_analytics_reports, get_analytics_report).
+Swift MCP (Model Context Protocol) server that lets Claude Code read and update App Store Connect metadata, check app analytics and performance, and download sales & finance reports. It exposes 16 tools over stdio transport: metadata tools (list_apps, get_metadata, update_name, update_keywords, update_description, update_promo_text, update_whats_new, list_locales, bulk_update, create_version), analytics/performance tools (get_perf_metrics, get_diagnostics, setup_analytics_reports, get_analytics_report), and sales/finance tools (get_sales_report, get_finance_report).
 
 ## Build
 
@@ -35,6 +35,10 @@ All write tools support `dryRun: true` and return old/new values for confirmatio
 - `GetDiagnosticsTool` — fetches diagnostic signatures from builds, auto-resolves latest valid build
 - `SetupAnalyticsReportsTool` — creates ONGOING analytics report requests (one-time prerequisite)
 - `GetAnalyticsReportTool` — 5-step API chain: finds report request → lists reports → gets instances → gets segments → downloads & parses CSV
+
+**Sales & Finance tools:**
+- `GetSalesReportTool` — downloads sales/trends reports via `client.download()`, parses gzip-compressed TSV
+- `GetFinanceReportTool` — downloads monthly financial settlement reports via `client.download()`, parses gzip-compressed TSV
 
 **Helpers:**
 - `LocaleHelper` validates locales against 35+ supported App Store locales and provides keyword validation (100 char limit, duplicate/plural/space warnings)

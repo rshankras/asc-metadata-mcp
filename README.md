@@ -84,3 +84,12 @@ Analytics reports require a one-time setup, then a 24-48 hour wait for data:
 ```
 
 `get_perf_metrics` and `get_diagnostics` work immediately with no setup required.
+
+### Sales & Finance
+
+| Tool | Description |
+|------|------------|
+| `get_sales_report` | Download sales & trends reports (units, proceeds, refunds, subscriptions) |
+| `get_finance_report` | Download monthly financial settlement reports (payments, proceeds by region) |
+
+Sales reports are available next-day. Finance reports are available after Apple processes the monthly payment cycle. Both require your vendor number from App Store Connect (Payments & Financial Reports).

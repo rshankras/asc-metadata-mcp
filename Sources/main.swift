@@ -31,6 +31,8 @@ await server.withMethodHandler(ListTools.self) { _ in
         GetDiagnosticsTool.tool,
         SetupAnalyticsReportsTool.tool,
         GetAnalyticsReportTool.tool,
+        GetSalesReportTool.tool,
+        GetFinanceReportTool.tool,
     ])
 }
 
@@ -75,6 +77,12 @@ await server.withMethodHandler(CallTool.self) { params in
         case "get_analytics_report":
             return try await GetAnalyticsReportTool.handle(
                 arguments: params.arguments, client: ascClient)
+        case "get_sales_report":
+            return try await GetSalesReportTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "get_finance_report":
+            return try await GetFinanceReportTool.handle(
+                arguments: params.arguments, client: ascClient)
         default:
             return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
@@ -88,4 +96,4 @@ let transport = StdioTransport()
 try await server.start(transport: transport)
 
 // Keep server running
-try await Task.sleep(for: .seconds(TimeInterval(Int.max)))
+try await Task.sleep(for: .seconds(60 * 60 * 24 * 365))
