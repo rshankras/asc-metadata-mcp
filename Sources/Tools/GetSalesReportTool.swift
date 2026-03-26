@@ -7,7 +7,7 @@ enum GetSalesReportTool {
     static let tool = Tool(
         name: "get_sales_report",
         description:
-            "Download sales & trends report data from App Store Connect. Covers units sold, proceeds, updates, refunds, and more. Returns parsed TSV data as JSON.",
+            "Download sales & trends report data from App Store Connect. Covers units sold, proceeds, updates, refunds, and more. Returns parsed TSV data as JSON. NOTE: SUBSCRIPTION, SUBSCRIPTION_EVENT, and SUBSCRIBER report types are being deprecated by Apple mid-2026. Use get_analytics_report with COMMERCE category instead.",
         inputSchema: .object([
             "type": "object",
             "properties": .object([
@@ -86,6 +86,15 @@ enum GetSalesReportTool {
                     )
                 ], isError: true)
         }
+
+        // Check for deprecated report types
+        let deprecatedTypes: Set<String> = [
+            "SUBSCRIPTION", "SUBSCRIPTION_EVENT", "SUBSCRIBER",
+        ]
+        let deprecationWarning: String? =
+            deprecatedTypes.contains(reportTypeStr)
+            ? "WARNING: '\(reportTypeStr)' reports are being deprecated by Apple mid-2026. Use 'get_analytics_report' with category 'COMMERCE' for subscription analytics instead."
+            : nil
 
         // Map reportSubType string to SDK enum
         typealias FilterReportSubType = Resources.V1.SalesReports.FilterReportSubType
@@ -182,7 +191,7 @@ enum GetSalesReportTool {
         let maxRows = 200
         let limitedRows = Array(parsed.rows.prefix(maxRows))
 
-        let result: [String: Any] = [
+        var result: [String: Any] = [
             "vendorNumber": vendorNumber,
             "reportType": reportTypeStr,
             "reportSubType": reportSubTypeStr,
@@ -194,6 +203,10 @@ enum GetSalesReportTool {
             "rowsReturned": limitedRows.count,
             "truncated": parsed.rows.count > maxRows,
         ]
+
+        if let warning = deprecationWarning {
+            result["deprecationWarning"] = warning
+        }
 
         let json = try JSONSerialization.data(
             withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

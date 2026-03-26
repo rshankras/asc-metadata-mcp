@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Swift MCP (Model Context Protocol) server that lets Claude Code manage the full App Store Connect lifecycle. It exposes 60 tools over stdio transport across 10 categories: metadata (10), in-app events (5), analytics/performance (4), sales/finance (2), customer reviews (4), custom product pages (5), product page optimization/A/B testing (5), in-app purchases (5), subscriptions (5), pricing/availability (4), release management (3), app configuration (3), and beta testing/TestFlight (5).
+Swift MCP (Model Context Protocol) server that lets Claude Code manage the full App Store Connect lifecycle. It exposes 67 tools over stdio transport across 12 categories: metadata (10), in-app events (5), analytics/performance (4), sales/finance (2), customer reviews (4), custom product pages (5), product page optimization/A/B testing (5), in-app purchases (5), subscriptions (5), pricing/availability (4), release management (3), app configuration (3), beta testing/TestFlight (7), and webhooks (5).
 
 ## Build
 
@@ -44,7 +44,7 @@ All write tools support `dryRun: true` and return old/new values for confirmatio
 - `UpdateEventLocalizationTool` — creates or updates event localization (auto-detects via locale match); validates locale and character limits
 
 **Sales & Finance tools:**
-- `GetSalesReportTool` — downloads sales/trends reports via `client.download()`, parses gzip-compressed TSV
+- `GetSalesReportTool` — downloads sales/trends reports via `client.download()`, parses gzip-compressed TSV. **Note:** SUBSCRIPTION, SUBSCRIPTION_EVENT, and SUBSCRIBER report types are deprecated by Apple mid-2026; use `GetAnalyticsReportTool` with COMMERCE category instead.
 - `GetFinanceReportTool` — downloads monthly financial settlement reports via `client.download()`, parses gzip-compressed TSV
 
 **Customer Reviews tools:**
@@ -103,6 +103,15 @@ All write tools support `dryRun: true` and return old/new values for confirmatio
 - `UpdateBetaGroupTool` — updates group settings
 - `DeleteBetaGroupTool` — deletes a beta group
 - `AddBetaTesterTool` — adds a tester by email to a group
+- `ListBetaFeedbackCrashesTool` — lists crash feedback from testers with device info, comments, and build details; filters by device, OS, platform, build
+- `ListBetaFeedbackScreenshotsTool` — lists screenshot feedback from testers with screenshot URLs, device info, and comments; same filters as crashes
+
+**Webhook tools:**
+- `ListWebhooksTool` — lists webhooks configured for an app with URL, event subscriptions, and enabled state
+- `CreateWebhookTool` — creates a webhook with URL, HMAC secret, and event type subscriptions (12 event types: build uploads, beta feedback, version state changes, etc.)
+- `UpdateWebhookTool` — updates webhook URL, name, secret, event subscriptions, or enabled state; shows old/new diff
+- `DeleteWebhookTool` — deletes a webhook; fetches details for confirmation
+- `PingWebhookTool` — sends a test ping to verify webhook endpoint is reachable
 
 **Helpers:**
 - `LocaleHelper` validates locales against 35+ supported App Store locales and provides keyword validation (100 char limit, duplicate/plural/space warnings)

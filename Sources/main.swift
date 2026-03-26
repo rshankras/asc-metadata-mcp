@@ -77,6 +77,13 @@ await server.withMethodHandler(ListTools.self) { _ in
         UpdateBetaGroupTool.tool,
         DeleteBetaGroupTool.tool,
         AddBetaTesterTool.tool,
+        ListWebhooksTool.tool,
+        CreateWebhookTool.tool,
+        UpdateWebhookTool.tool,
+        DeleteWebhookTool.tool,
+        PingWebhookTool.tool,
+        ListBetaFeedbackCrashesTool.tool,
+        ListBetaFeedbackScreenshotsTool.tool,
     ])
 }
 
@@ -258,6 +265,27 @@ await server.withMethodHandler(CallTool.self) { params in
                 arguments: params.arguments, client: ascClient)
         case "add_beta_tester":
             return try await AddBetaTesterTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "list_webhooks":
+            return try await ListWebhooksTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "create_webhook":
+            return try await CreateWebhookTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "update_webhook":
+            return try await UpdateWebhookTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "delete_webhook":
+            return try await DeleteWebhookTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "ping_webhook":
+            return try await PingWebhookTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "list_beta_feedback_crashes":
+            return try await ListBetaFeedbackCrashesTool.handle(
+                arguments: params.arguments, client: ascClient)
+        case "list_beta_feedback_screenshots":
+            return try await ListBetaFeedbackScreenshotsTool.handle(
                 arguments: params.arguments, client: ascClient)
         default:
             return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)

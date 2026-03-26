@@ -209,19 +209,27 @@ enum GetAnalyticsReportTool {
         // Step 6: Download CSV data from pre-signed URL
         let (data, _) = try await URLSession.shared.data(from: downloadURL)
 
-        // The data may be gzip-compressed; try to decompress
+        // The data is typically gzip-compressed; check for gzip magic bytes
         let csvText: String
-        if let text = String(data: data, encoding: .utf8) {
-            csvText = text
-        } else {
-            // Try gzip decompression
-            let decompressed = try decompressGzip(data)
+        if data.count >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+            // Gzip compressed — write to temp file and decompress with system gzip
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + ".gz")
+            try data.write(to: tempURL)
+            let decompressed = try decompressGzip(fileURL: tempURL)
+            try? FileManager.default.removeItem(at: tempURL)
             guard let text = String(data: decompressed, encoding: .utf8) else {
                 return .init(
-                    content: [.text("Error: Could not decode downloaded report data as text.")],
+                    content: [.text("Error: Could not decode decompressed report data as text.")],
                     isError: true)
             }
             csvText = text
+        } else if let text = String(data: data, encoding: .utf8) {
+            csvText = text
+        } else {
+            return .init(
+                content: [.text("Error: Could not decode downloaded report data as text.")],
+                isError: true)
         }
 
         // Step 7: Parse CSV/TSV
@@ -250,17 +258,17 @@ enum GetAnalyticsReportTool {
         return .init(content: [.text(text)])
     }
 
-    /// Attempt gzip decompression using zlib via Foundation
-    private static func decompressGzip(_ data: Data) throws -> Data {
-        // Try NSData decompression if available (macOS 13+)
-        if #available(macOS 13.0, *) {
-            return try (data as NSData).decompressed(using: .zlib) as Data
-        }
-        throw DecompressionError.unsupported
-    }
-
-    private enum DecompressionError: Error, LocalizedError {
-        case unsupported
-        var errorDescription: String? { "Gzip decompression not available" }
+    /// Decompress gzip file using system gzip binary
+    private static func decompressGzip(fileURL: URL) throws -> Data {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
+        process.arguments = ["-d", "-c", fileURL.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return data
     }
 }
