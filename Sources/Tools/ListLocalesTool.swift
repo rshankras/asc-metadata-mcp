@@ -24,10 +24,12 @@ enum ListLocalesTool {
             return .init(content: [.text("Error: appId is required")], isError: true)
         }
 
+        // Prefer the editable AppInfo so locales reflect the prepared version's set when one
+        // exists (locales can be added/removed between versions). See AppInfoSelector.
         let appInfosResponse = try await client.send(
             Resources.v1.apps.id(appId).appInfos.get()
         )
-        guard let appInfo = appInfosResponse.data.first else {
+        guard let appInfo = AppInfoSelector.findPreferredOrFirst(in: appInfosResponse.data) else {
             return .init(content: [.text("Error: No app info found for app \(appId)")], isError: true)
         }
 

@@ -29,11 +29,14 @@ enum GetMetadataTool {
         }
         let locale = arguments?["locale"]?.stringValue ?? "en-US"
 
-        // Get app info localizations (name, subtitle)
+        // Get app info localizations (name, subtitle).
+        // Prefer the editable AppInfo (e.g. PREPARE_FOR_SUBMISSION) when one exists, so the
+        // returned name/subtitle reflects the prepared version instead of the live one.
+        // See AppInfoSelector for the why.
         let appInfosResponse = try await client.send(
             Resources.v1.apps.id(appId).appInfos.get()
         )
-        guard let appInfo = appInfosResponse.data.first else {
+        guard let appInfo = AppInfoSelector.findPreferredOrFirst(in: appInfosResponse.data) else {
             return .init(content: [.text("Error: No app info found for app \(appId)")], isError: true)
         }
 

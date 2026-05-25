@@ -58,12 +58,16 @@ enum UpdateNameTool {
             if !valid { return .init(content: [.text("Error: \(error!)")], isError: true) }
         }
 
-        // Find the app info localization
+        // Find the editable AppInfo. See AppInfoSelector for the why.
         let appInfosResponse = try await client.send(
             Resources.v1.apps.id(appId).appInfos.get()
         )
-        guard let appInfo = appInfosResponse.data.first else {
-            return .init(content: [.text("Error: No app info found for app \(appId)")], isError: true)
+        guard let appInfo = AppInfoSelector.findEditable(in: appInfosResponse.data) else {
+            return .init(
+                content: [.text(
+                    "Error: No editable app info found for app \(appId). Ensure a version is in 'Prepare for Submission' (or Developer Rejected / Rejected / Ready for Review) state."
+                )],
+                isError: true)
         }
 
         let infoLocsResponse = try await client.send(
