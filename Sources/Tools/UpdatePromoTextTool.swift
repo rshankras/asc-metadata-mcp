@@ -44,8 +44,16 @@ enum UpdatePromoTextTool {
             promoText, field: "Promotional text", maxChars: 170)
         if !valid { return .init(content: [.text("Error: \(error!)")], isError: true) }
 
-        let versionLoc = try await findVersionLocalization(
+        // Prefer the LIVE version so the edit propagates to the public product page immediately
+        // (Apple permits promo-text edits on the live version without review). Fall back to the
+        // latest version (e.g. for brand-new apps that haven't shipped yet, or when no
+        // localization exists on the live version for this locale).
+        var versionLoc = try await findLiveVersionLocalization(
             appId: appId, locale: locale, client: client)
+        if case .failure = versionLoc {
+            versionLoc = try await findVersionLocalization(
+                appId: appId, locale: locale, client: client)
+        }
         switch versionLoc {
         case .failure(let errorResult): return errorResult
         case .success(let loc):
