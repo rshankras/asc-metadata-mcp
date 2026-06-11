@@ -14,7 +14,7 @@ enum GetFinanceReportTool {
                 "vendorNumber": .object([
                     "type": "string",
                     "description":
-                        "Vendor number from App Store Connect (found in Payments & Financial Reports)",
+                        "Vendor number from App Store Connect (found in Payments & Financial Reports). Optional if vendorNumber is set in ~/.asc-metadata-mcp/config.json.",
                 ]),
                 "reportDate": .object([
                     "type": "string",
@@ -35,7 +35,7 @@ enum GetFinanceReportTool {
                 ]),
             ]),
             "required": .array([
-                .string("vendorNumber"), .string("reportDate"), .string("regionCode"),
+                .string("reportDate"), .string("regionCode"),
             ]),
         ])
     )
@@ -44,8 +44,14 @@ enum GetFinanceReportTool {
         arguments: [String: Value]?,
         client: AppStoreConnectClient
     ) async throws -> CallTool.Result {
-        guard let vendorNumber = arguments?["vendorNumber"]?.stringValue else {
-            return .init(content: [.text("Error: vendorNumber is required")], isError: true)
+        guard let vendorNumber = arguments?["vendorNumber"]?.stringValue ?? config.vendorNumber
+        else {
+            return .init(
+                content: [
+                    .text(
+                        "Error: vendorNumber is required (pass it as an argument or set \"vendorNumber\" in ~/.asc-metadata-mcp/config.json)"
+                    )
+                ], isError: true)
         }
         guard let reportDate = arguments?["reportDate"]?.stringValue else {
             return .init(content: [.text("Error: reportDate is required (YYYY-MM format)")], isError: true)

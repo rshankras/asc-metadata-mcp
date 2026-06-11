@@ -19,10 +19,13 @@ cat > ~/.asc-metadata-mcp/config.json << 'EOF'
 {
     "issuerID": "YOUR_ISSUER_ID",
     "privateKeyID": "YOUR_KEY_ID",
-    "privateKeyPath": "/path/to/AuthKey_XXXXXXXX.p8"
+    "privateKeyPath": "/path/to/AuthKey_XXXXXXXX.p8",
+    "vendorNumber": "YOUR_VENDOR_NUMBER"
 }
 EOF
 ```
+
+`vendorNumber` is optional — it is the default for `get_sales_report` and `get_finance_report` when no vendor number is passed. Find it in App Store Connect under Payments and Financial Reports (it is not retrievable via the API).
 
 ### 3. Build
 

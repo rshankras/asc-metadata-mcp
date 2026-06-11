@@ -5,6 +5,9 @@ struct AuthConfig: Codable, Sendable {
     let issuerID: String
     let privateKeyID: String
     let privateKeyPath: String
+    /// Default vendor number for sales/finance reports. Not retrievable via the
+    /// ASC API — found in App Store Connect under Payments and Financial Reports.
+    let vendorNumber: String?
 
     static let configDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".asc-metadata-mcp")
