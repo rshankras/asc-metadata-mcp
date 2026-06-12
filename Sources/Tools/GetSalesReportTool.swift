@@ -177,7 +177,7 @@ enum GetSalesReportTool {
                 )
             )
         } catch let error as ResponseError {
-            let message = formatResponseError(error)
+            let message = ResponseErrorFormatter.format(error)
             return .init(content: [.text("Error downloading sales report: \(message)")], isError: true)
         }
 
@@ -387,19 +387,4 @@ enum GetSalesReportTool {
         return data
     }
 
-    private static func formatResponseError(_ error: ResponseError) -> String {
-        switch error {
-        case .requestFailure(let errorResponse, let statusCode, _):
-            var message = "HTTP \(statusCode)"
-            if let errors = errorResponse?.errors {
-                let details = errors.map { "\($0.code): \($0.detail)" }.joined(separator: "; ")
-                message += " - \(details)"
-            }
-            return message
-        case .rateLimitExceeded(_, let rate, _):
-            return "Rate limit exceeded. Limit: \(rate?.limit ?? 0), remaining: \(rate?.remaining ?? 0)"
-        case .dataAssertionFailed:
-            return "No data returned from API"
-        }
-    }
 }

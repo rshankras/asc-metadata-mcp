@@ -95,12 +95,44 @@ enum GetDiagnosticsTool {
             }
         }
 
-        let response = try await client.send(
-            Resources.v1.builds.id(buildId).diagnosticSignatures.get(
-                filterDiagnosticType: diagFilter,
-                limit: limit
+        var result: [String: Any] = [
+            "appId": appId,
+            "buildId": buildId,
+        ]
+        if let buildVersion {
+            result["buildVersion"] = buildVersion
+        }
+        if let buildUploadedDate {
+            result["buildUploadedDate"] = buildUploadedDate
+        }
+
+        let response: DiagnosticSignaturesResponse
+        do {
+            response = try await client.send(
+                Resources.v1.builds.id(buildId).diagnosticSignatures.get(
+                    filterDiagnosticType: diagFilter,
+                    limit: limit
+                )
             )
-        )
+        } catch let error as ResponseError {
+            // Apple has no diagnostic data resource for some builds (404) — for a
+            // monitoring caller that is "no data", not a failure.
+            if ResponseErrorFormatter.statusCode(error) == 404 {
+                result["diagnosticCount"] = 0
+                result["diagnostics"] = [[String: Any]]()
+                result["note"] =
+                    "No diagnostic data exists for this build (API returned 404). Typical for builds without enough field usage or uploaded before diagnostics collection."
+                let json = try JSONSerialization.data(
+                    withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+                return .init(content: [.text(String(data: json, encoding: .utf8) ?? "{}")])
+            }
+            return .init(
+                content: [
+                    .text(
+                        "Error fetching diagnostic signatures for build \(buildId): \(ResponseErrorFormatter.format(error))"
+                    )
+                ], isError: true)
+        }
 
         // Build diagnostics array
         var diagnostics: [[String: Any]] = []
@@ -129,18 +161,8 @@ enum GetDiagnosticsTool {
             diagnostics.append(entry)
         }
 
-        var result: [String: Any] = [
-            "appId": appId,
-            "buildId": buildId,
-            "diagnosticCount": diagnostics.count,
-            "diagnostics": diagnostics,
-        ]
-        if let buildVersion {
-            result["buildVersion"] = buildVersion
-        }
-        if let buildUploadedDate {
-            result["buildUploadedDate"] = buildUploadedDate
-        }
+        result["diagnosticCount"] = diagnostics.count
+        result["diagnostics"] = diagnostics
 
         let json = try JSONSerialization.data(
             withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

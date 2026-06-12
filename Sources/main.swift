@@ -1,3 +1,4 @@
+import AppStoreConnect
 import Foundation
 import MCP
 
@@ -290,6 +291,9 @@ await server.withMethodHandler(CallTool.self) { params in
         default:
             return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
+    } catch let error as ResponseError {
+        return .init(
+            content: [.text("Error: \(ResponseErrorFormatter.format(error))")], isError: true)
     } catch {
         return .init(content: [.text("Error: \(error.localizedDescription)")], isError: true)
     }
