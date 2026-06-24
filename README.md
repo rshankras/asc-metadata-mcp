@@ -27,18 +27,6 @@ Ask Claude: *"Reply to all 1-star reviews that mention crashes"*
 
 All write tools support **`dryRun: true`** — Claude shows exactly what it would change before touching anything.
 
-## How it differs from the App Store Connect CLI
-
-| | asc-metadata-mcp | asc CLI |
-|---|---|---|
-| Interface | MCP tools (structured JSON) | Shell commands |
-| AI integration | Native — Claude calls tools directly | Via skill wrappers that shell out |
-| Language | Swift (macOS-native) | Go (cross-platform) |
-| Focus | Metadata, ASO, analytics, reviews, IAP | Builds, signing, TestFlight, submissions |
-| Write safety | Built-in `dryRun` on every write tool | — |
-
-They cover different lanes and work well together.
-
 ## Setup
 
 ### 1. Generate App Store Connect API Key
