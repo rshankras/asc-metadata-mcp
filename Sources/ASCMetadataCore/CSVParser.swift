@@ -1,14 +1,14 @@
 import Foundation
 
-enum CSVParser {
-    struct ParsedData: Sendable {
-        let headers: [String]
-        let rows: [[String]]
+public enum CSVParser {
+    public struct ParsedData: Sendable {
+        public let headers: [String]
+        public let rows: [[String]]
     }
 
     /// Parse tab-separated (or comma-separated) text into headers and rows.
     /// Apple's analytics CSVs use TSV format.
-    static func parse(_ text: String, delimiter: Character = "\t") -> ParsedData {
+    public static func parse(_ text: String, delimiter: Character = "\t") -> ParsedData {
         let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
         guard let headerLine = lines.first else {
             return ParsedData(headers: [], rows: [])
