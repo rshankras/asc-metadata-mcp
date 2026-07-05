@@ -236,7 +236,7 @@ Diagnostics go to **stderr** — stdout is reserved for the MCP JSON-RPC stream 
 
 ## Compatibility
 
-Pinned to **asc-swift 1.6.x**. Version 1.7.0 introduced breaking API changes (the `CustomerReview` included-item model became an enum, and `AppInfo.Attributes.kidsAgeBand` moved) that this project has not yet migrated to.
+Built against **asc-swift 1.7.0+**.
 
 ## Related
 

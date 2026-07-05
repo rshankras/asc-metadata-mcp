@@ -57,21 +57,26 @@ enum GetReviewTool {
             reviewDict["territory"] = territory.rawValue
         }
 
-        // Check for included response
-        if let included = response.included, let devResponse = included.first {
-            var respDict: [String: Any] = [
-                "responseId": devResponse.id,
-            ]
-            if let body = devResponse.attributes?.responseBody {
-                respDict["responseBody"] = body
+        // Check for included response. In asc-swift 1.7.0 `included` items are an
+        // enum, so match the customer-review-response case.
+        if let included = response.included {
+            for item in included {
+                guard case .customerReviewResponseV1(let devResponse) = item else { continue }
+                var respDict: [String: Any] = [
+                    "responseId": devResponse.id,
+                ]
+                if let body = devResponse.attributes?.responseBody {
+                    respDict["responseBody"] = body
+                }
+                if let date = devResponse.attributes?.lastModifiedDate {
+                    respDict["lastModifiedDate"] = formatter.string(from: date)
+                }
+                if let state = devResponse.attributes?.state {
+                    respDict["state"] = state.rawValue
+                }
+                reviewDict["developerResponse"] = respDict
+                break
             }
-            if let date = devResponse.attributes?.lastModifiedDate {
-                respDict["lastModifiedDate"] = formatter.string(from: date)
-            }
-            if let state = devResponse.attributes?.state {
-                respDict["state"] = state.rawValue
-            }
-            reviewDict["developerResponse"] = respDict
         }
 
         let json = try JSONSerialization.data(
