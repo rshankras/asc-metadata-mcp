@@ -95,9 +95,8 @@ enum GetAgeRatingTool {
         if let brazilRating = appAttrs?.brazilAgeRatingV2 {
             result["brazilAgeRatingV2"] = brazilRating.rawValue
         }
-        if let kidsAgeBand = appAttrs?.kidsAgeBand {
-            result["kidsAgeBand"] = kidsAgeBand.rawValue
-        }
+        // `kidsAgeBand` was removed from AppInfo.Attributes in asc-swift 1.7.0;
+        // it now lives only on the age-rating declaration (surfaced below).
 
         // Boolean content descriptors
         var booleanDescriptors: [String: Any] = [:]
@@ -183,7 +182,7 @@ enum GetAgeRatingTool {
         result["overrides"] = overrides
 
         if let v = attrs?.kidsAgeBand {
-            result["kidsAgeBand_declaration"] = v.rawValue
+            result["kidsAgeBand"] = v.rawValue
         }
         if let url = attrs?.developerAgeRatingInfoURL {
             result["developerAgeRatingInfoUrl"] = url.absoluteString
