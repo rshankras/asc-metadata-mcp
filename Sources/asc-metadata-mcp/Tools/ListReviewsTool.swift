@@ -95,6 +95,10 @@ enum ListReviewsTool {
                 sort: sort,
                 fieldsCustomerReviews: [
                     .rating, .title, .body, .reviewerNickname, .createdDate, .territory,
+                    // `.response` must be requested so ASC returns the review→response
+                    // relationship linkage; without it, sparse fieldsets omit it and
+                    // developer responses can't be matched to their reviews.
+                    .response,
                 ],
                 fieldsCustomerReviewResponses: [.responseBody, .lastModifiedDate, .state],
                 limit: limit,
