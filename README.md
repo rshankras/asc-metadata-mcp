@@ -52,6 +52,15 @@ EOF
 
 `vendorNumber` is optional — default for `get_sales_report` and `get_finance_report`. Find it in App Store Connect under Payments and Financial Reports (not available via API).
 
+**Or use environment variables** — these take precedence over the config file, which is handy for CI, containers, or sandboxed runs where you'd rather not write secrets to disk:
+
+```bash
+export ASC_ISSUER_ID=YOUR_ISSUER_ID
+export ASC_KEY_ID=YOUR_KEY_ID
+export ASC_PRIVATE_KEY_PATH=~/.appstoreconnect/AuthKey_XXXXXXXX.p8
+export ASC_VENDOR_NUMBER=YOUR_VENDOR_NUMBER   # optional
+```
+
 ### 3. Build
 
 ```bash
@@ -219,7 +228,15 @@ Both require your vendor number (from App Store Connect → Payments and Financi
 
 ## Architecture
 
-Built on the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) with StdioTransport and [asc-swift](https://github.com/aaronsky/asc-swift) for the App Store Connect API client (JWT lifecycle managed automatically).
+Built on the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) with StdioTransport and [asc-swift](https://github.com/aaronsky/asc-swift) for the App Store Connect API client (JWT lifecycle managed automatically). Tools are declared in a single registry in `main.swift`, so `tools/list` and `tools/call` are always in sync. Pure, dependency-free helpers live in the `ASCMetadataCore` library target and are covered by unit tests (`swift test`).
+
+## Logging
+
+Diagnostics go to **stderr** — stdout is reserved for the MCP JSON-RPC stream — so Claude Desktop / Claude Code surface them in their MCP logs. Control verbosity with the `ASC_LOG_LEVEL` environment variable (`debug` | `info` | `error`; default `info`). Tool arguments are never logged.
+
+## Compatibility
+
+Pinned to **asc-swift 1.6.x**. Version 1.7.0 introduced breaking API changes (the `CustomerReview` included-item model became an enum, and `AppInfo.Attributes.kidsAgeBand` moved) that this project has not yet migrated to.
 
 ## Related
 

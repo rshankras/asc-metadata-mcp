@@ -1,28 +1,28 @@
 import Foundation
 
-enum LocaleHelper {
-    static let validLocales: Set<String> = [
+public enum LocaleHelper {
+    public static let validLocales: Set<String> = [
         "ar-SA", "ca", "cs", "da", "de-DE", "el", "en-AU", "en-CA", "en-GB", "en-US",
         "es-ES", "es-MX", "fi", "fr-CA", "fr-FR", "he", "hi", "hr", "hu", "id",
         "it", "ja", "ko", "ms", "nl-NL", "no", "pl", "pt-BR", "pt-PT", "ro",
         "ru", "sk", "sv", "th", "tr", "uk", "vi", "zh-Hans", "zh-Hant",
     ]
 
-    static func validate(_ locale: String) -> Bool {
+    public static func validate(_ locale: String) -> Bool {
         validLocales.contains(locale)
     }
 }
 
-enum KeywordValidator {
-    struct ValidationResult: Sendable {
-        let isValid: Bool
-        let charCount: Int
-        let maxChars: Int
-        let warnings: [String]
-        let error: String?
+public enum KeywordValidator {
+    public struct ValidationResult: Sendable {
+        public let isValid: Bool
+        public let charCount: Int
+        public let maxChars: Int
+        public let warnings: [String]
+        public let error: String?
     }
 
-    static func validate(_ keywords: String, maxChars: Int = 100) -> ValidationResult {
+    public static func validate(_ keywords: String, maxChars: Int = 100) -> ValidationResult {
         var warnings: [String] = []
 
         if keywords.count > maxChars {
@@ -66,8 +66,8 @@ enum KeywordValidator {
     }
 }
 
-enum CharLimitValidator {
-    static func validate(_ text: String, field: String, maxChars: Int) -> (isValid: Bool, error: String?) {
+public enum CharLimitValidator {
+    public static func validate(_ text: String, field: String, maxChars: Int) -> (isValid: Bool, error: String?) {
         if text.count > maxChars {
             return (false, "\(field) exceeds \(maxChars) character limit (\(text.count) chars)")
         }
