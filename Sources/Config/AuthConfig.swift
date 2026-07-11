@@ -28,6 +28,7 @@ struct AuthConfig: Codable, Sendable {
         }
         let privateKey = try JWT.PrivateKey(contentsOf: keyURL)
         return AppStoreConnectClient(
+            transport: ZonedDateFixingTransport(base: URLSession.shared),
             authenticator: JWT(
                 keyID: privateKeyID,
                 issuerID: issuerID,

@@ -36,7 +36,7 @@ enum GetAvailabilityTool {
                     .contentStatuses, .territory,
                 ],
                 include: [.territoryAvailabilities],
-                limitTerritoryAvailabilities: 200
+                limitTerritoryAvailabilities: 50
             )
         )
 
