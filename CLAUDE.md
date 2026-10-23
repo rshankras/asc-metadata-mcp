@@ -4,21 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Swift MCP (Model Context Protocol) server that lets Claude Code manage the full App Store Connect lifecycle. It exposes 67 tools over stdio transport across 12 categories: metadata (10), in-app events (5), analytics/performance (4), sales/finance (2), customer reviews (4), custom product pages (5), product page optimization/A/B testing (5), in-app purchases (5), subscriptions (5), pricing/availability (4), release management (3), app configuration (3), beta testing/TestFlight (7), and webhooks (5).
+Swift MCP (Model Context Protocol) server that lets Claude Code manage the full App Store Connect lifecycle. It exposes 67 tools over stdio transport across 14 categories: metadata (10), in-app events (5), analytics/performance (4), sales/finance (2), customer reviews (4), custom product pages (5), product page optimization/A/B testing (5), in-app purchases (5), subscriptions (5), pricing/availability (4), release management (3), app configuration (3), beta testing/TestFlight (7), and webhooks (5).
 
 ## Build
 
 ```bash
-swift build -c release
+swift build -c release   # server binary: .build/release/asc-metadata-mcp
+swift test               # unit tests for the ASCMetadataCore target
 ```
 
-No tests, linting, or CI are configured.
+No linting or CI is configured. Tests cover only `ASCMetadataCore` (CSV parsing, locale and keyword validation); tool handlers talk to the live API and have no tests.
 
 ## Architecture
 
-**Entry point:** `Sources/main.swift` — loads auth config, creates an `AppStoreConnectClient`, sets up MCP `Server` with stdio transport, and routes tool calls via a switch statement.
+**Package layout:** two targets. `ASCMetadataCore` (`Sources/ASCMetadataCore/`) holds pure, dependency-free helpers (`CSVParser`, `LocaleHelper`) and is the only unit-tested code; tools that use them `import ASCMetadataCore`. The `asc-metadata-mcp` executable (`Sources/asc-metadata-mcp/`) holds `main.swift`, `Config/`, `Helpers/`, `Tools/`, and `Log.swift`.
 
-**Tool pattern:** Each tool is an `enum` in `Sources/Tools/` with:
+**Entry point:** `Sources/asc-metadata-mcp/main.swift` — loads auth config, creates an `AppStoreConnectClient`, and declares a single `registry` array of `(tool, handle)` pairs that drives both `tools/list` and `tools/call`, so the two cannot drift. Diagnostics go to stderr via `Log` (stdout is the JSON-RPC stream); `ASC_LOG_LEVEL` is `debug` | `info` | `error` (default `info`). Tool arguments are never logged.
+
+**Tool pattern:** Each tool is an `enum` in `Sources/asc-metadata-mcp/Tools/` with:
 - A static `tool` property defining MCP metadata (name, description, inputSchema)
 - A static async `handle(arguments:client:)` function
 
@@ -116,15 +119,18 @@ All write tools support `dryRun: true` and return old/new values for confirmatio
 **Helpers:**
 - `LocaleHelper` validates locales against 35+ supported App Store locales and provides keyword validation (100 char limit, duplicate/plural/space warnings)
 - `CSVParser` parses tab-separated analytics report data downloaded from Apple's pre-signed URLs
+- `AppInfoSelector` picks the right `AppInfo` record (one exists per state; the API does not order them)
+- `ResponseErrorFormatter` turns asc-swift `ResponseError`s into readable ASC error messages
+- `ZonedDateFixingTransport` (`Config/`) wraps `URLSession` and appends `Z` to zone-less fractional ISO-8601 date strings in outgoing bodies. asc-swift's Swift 6 `encodeISO8601Date` omits the time zone and ASC rejects the value (`ENTITY_ERROR.ATTRIBUTE.TYPE` on appEvent territorySchedules). Still needed as of asc-swift 1.8.0; remove once upstream fixes the encoder.
 
 ## Key Dependencies
 
 - `MCP` from [modelcontextprotocol/swift-sdk](https://github.com/modelcontextprotocol/swift-sdk) (v0.11.0) — MCP protocol
-- `AppStoreConnect` from [aaronsky/asc-swift](https://github.com/aaronsky/asc-swift) (v1.5.0) — App Store Connect API client
+- `AppStoreConnect` from [aaronsky/asc-swift](https://github.com/aaronsky/asc-swift) (from 1.7.0; currently resolves to 1.8.0) — App Store Connect API client
 
 ## Configuration
 
-Auth config lives at `~/.asc-metadata-mcp/config.json` with `issuerID`, `privateKeyID`, and `privateKeyPath` (path to `.p8` key file). See `config.json.example`.
+Auth config lives at `~/.asc-metadata-mcp/config.json` with `issuerID`, `privateKeyID`, `privateKeyPath` (path to `.p8` key file), and optional `vendorNumber`. See `config.json.example`. The environment variables `ASC_ISSUER_ID`, `ASC_KEY_ID`, `ASC_PRIVATE_KEY_PATH` (and optional `ASC_VENDOR_NUMBER`) take precedence over the file.
 
 ## Character Limits (enforced in tools)
 
@@ -134,5 +140,5 @@ Name: 30, Subtitle: 30, Keywords: 100, Description: 4000, Promo Text: 170, What'
 
 ## Adding a New Tool
 
-1. Create `Sources/Tools/NewTool.swift` as an `enum` with static `tool` and `handle()`
-2. Register in `main.swift`: add to the `ListTools` array and `CallTool` switch
+1. Create `Sources/asc-metadata-mcp/Tools/NewTool.swift` as an `enum` with static `tool` and `handle()`
+2. Register in `main.swift`: add one `(NewTool.tool, NewTool.handle)` entry to `registry`
