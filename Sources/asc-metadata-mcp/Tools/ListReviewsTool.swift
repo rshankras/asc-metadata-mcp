@@ -95,6 +95,10 @@ enum ListReviewsTool {
                 sort: sort,
                 fieldsCustomerReviews: [
                     .rating, .title, .body, .reviewerNickname, .createdDate, .territory,
+                    // `.response` must be requested so ASC returns the review→response
+                    // relationship linkage; without it, sparse fieldsets omit it and
+                    // developer responses can't be matched to their reviews.
+                    .response,
                 ],
                 fieldsCustomerReviewResponses: [.responseBody, .lastModifiedDate, .state],
                 limit: limit,
@@ -124,9 +128,12 @@ enum ListReviewsTool {
                 reviewDict["territory"] = territory.rawValue
             }
 
-            // Find included response for this review
+            // Find included response for this review (1.7.0: included items are an enum).
             if let responseRelId = review.relationships?.response?.data?.id {
-                if let devResponse = includedResponses.first(where: { $0.id == responseRelId }) {
+                for item in includedResponses {
+                    guard case .customerReviewResponseV1(let devResponse) = item,
+                        devResponse.id == responseRelId
+                    else { continue }
                     var respDict: [String: Any] = [
                         "responseId": devResponse.id,
                     ]
@@ -140,6 +147,7 @@ enum ListReviewsTool {
                         respDict["state"] = state.rawValue
                     }
                     reviewDict["developerResponse"] = respDict
+                    break
                 }
             }
 

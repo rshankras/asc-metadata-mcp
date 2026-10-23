@@ -1,3 +1,4 @@
+import ASCMetadataCore
 import AppStoreConnect
 import AppStoreAPI
 import Foundation
@@ -81,15 +82,19 @@ enum RespondToReviewTool {
             reviewContext["territory"] = territory.rawValue
         }
 
-        // Check if there's already a response
-        if let included = reviewResponse.included, let existing = included.first {
-            var existingDict: [String: Any] = [
-                "responseId": existing.id,
-            ]
-            if let body = existing.attributes?.responseBody {
-                existingDict["responseBody"] = body
+        // Check if there's already a response (1.7.0: `included` items are an enum).
+        if let included = reviewResponse.included {
+            for item in included {
+                guard case .customerReviewResponseV1(let existing) = item else { continue }
+                var existingDict: [String: Any] = [
+                    "responseId": existing.id,
+                ]
+                if let body = existing.attributes?.responseBody {
+                    existingDict["responseBody"] = body
+                }
+                reviewContext["existingResponse"] = existingDict
+                break
             }
-            reviewContext["existingResponse"] = existingDict
         }
 
         var resultDict: [String: Any] = [

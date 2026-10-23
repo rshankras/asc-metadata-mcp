@@ -1,12 +1,13 @@
+import ASCMetadataCore
 import AppStoreConnect
 import AppStoreAPI
 import Foundation
 import MCP
 
-enum UpdatePromoTextTool {
+enum UpdateWhatsNewTool {
     static let tool = Tool(
-        name: "update_promo_text",
-        description: "Update promotional text for a specific locale. No app review needed — goes live immediately. Max 170 chars.",
+        name: "update_whats_new",
+        description: "Update release notes / what's new text for a specific locale (max 4000 chars).",
         inputSchema: .object([
             "type": "object",
             "properties": .object([
@@ -15,15 +16,15 @@ enum UpdatePromoTextTool {
                     "type": "string", "description": "Locale code (default: en-US)",
                     "default": "en-US",
                 ]),
-                "promotionalText": .object([
-                    "type": "string", "description": "Promotional text (max 170 chars)",
+                "whatsNew": .object([
+                    "type": "string", "description": "Release notes text (max 4000 chars)",
                 ]),
                 "dryRun": .object([
                     "type": "boolean", "description": "Preview changes without applying (default: false)",
                     "default": .bool(false),
                 ]),
             ]),
-            "required": .array([.string("appId"), .string("promotionalText")]),
+            "required": .array([.string("appId"), .string("whatsNew")]),
         ])
     )
 
@@ -34,38 +35,30 @@ enum UpdatePromoTextTool {
         guard let appId = arguments?["appId"]?.stringValue else {
             return .init(content: [.text("Error: appId is required")], isError: true)
         }
-        guard let promoText = arguments?["promotionalText"]?.stringValue else {
-            return .init(content: [.text("Error: promotionalText is required")], isError: true)
+        guard let whatsNew = arguments?["whatsNew"]?.stringValue else {
+            return .init(content: [.text("Error: whatsNew is required")], isError: true)
         }
         let locale = arguments?["locale"]?.stringValue ?? "en-US"
         let dryRun = arguments?["dryRun"]?.boolValue ?? false
 
         let (valid, error) = CharLimitValidator.validate(
-            promoText, field: "Promotional text", maxChars: 170)
+            whatsNew, field: "What's New", maxChars: 4000)
         if !valid { return .init(content: [.text("Error: \(error!)")], isError: true) }
 
-        // Prefer the LIVE version so the edit propagates to the public product page immediately
-        // (Apple permits promo-text edits on the live version without review). Fall back to the
-        // latest version (e.g. for brand-new apps that haven't shipped yet, or when no
-        // localization exists on the live version for this locale).
-        var versionLoc = try await findLiveVersionLocalization(
+        let versionLoc = try await findVersionLocalization(
             appId: appId, locale: locale, client: client)
-        if case .failure = versionLoc {
-            versionLoc = try await findVersionLocalization(
-                appId: appId, locale: locale, client: client)
-        }
         switch versionLoc {
         case .failure(let errorResult): return errorResult
         case .success(let loc):
-            let oldPromo = loc.attributes?.promotionalText ?? ""
+            let oldWhatsNew = loc.attributes?.whatsNew ?? ""
 
             if dryRun {
                 let result: [String: Any] = [
                     "status": "dry_run",
-                    "oldPromoText": oldPromo,
-                    "oldCharCount": "\(oldPromo.count)/170",
-                    "newPromoText": promoText,
-                    "newCharCount": "\(promoText.count)/170",
+                    "oldWhatsNew": oldWhatsNew,
+                    "oldCharCount": "\(oldWhatsNew.count)/4000",
+                    "newWhatsNew": whatsNew,
+                    "newCharCount": "\(whatsNew.count)/4000",
                 ]
                 let json = try JSONSerialization.data(
                     withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
@@ -73,7 +66,7 @@ enum UpdatePromoTextTool {
             }
 
             let updateRequest = AppStoreVersionLocalizationUpdateRequest(
-                data: .init(id: loc.id, attributes: .init(promotionalText: promoText))
+                data: .init(id: loc.id, attributes: .init(whatsNew: whatsNew))
             )
             _ = try await client.send(
                 Resources.v1.appStoreVersionLocalizations.id(loc.id).patch(updateRequest)
@@ -81,7 +74,7 @@ enum UpdatePromoTextTool {
 
             let result: [String: Any] = [
                 "status": "updated",
-                "charCount": "\(promoText.count)/170",
+                "charCount": "\(whatsNew.count)/4000",
             ]
             let json = try JSONSerialization.data(
                 withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

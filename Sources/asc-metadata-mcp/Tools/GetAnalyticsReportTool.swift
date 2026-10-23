@@ -1,5 +1,6 @@
-import AppStoreAPI
+import ASCMetadataCore
 import AppStoreConnect
+import AppStoreAPI
 import Foundation
 import MCP
 
