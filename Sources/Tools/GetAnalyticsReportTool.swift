@@ -1,5 +1,5 @@
-import AppStoreConnect
 import AppStoreAPI
+import AppStoreConnect
 import Foundation
 import MCP
 
@@ -7,7 +7,7 @@ enum GetAnalyticsReportTool {
     static let tool = Tool(
         name: "get_analytics_report",
         description:
-            "Download analytics report data for an app. Requires setup_analytics_reports to be run first. If no reportName is specified, lists available reports for discovery. Categories: APP_USAGE, APP_STORE_ENGAGEMENT, COMMERCE, FRAMEWORK_USAGE, PERFORMANCE.",
+            "Download analytics report data for an app. Requires setup_analytics_reports to be run first. If no reportName is specified, lists available reports for discovery. Categories: APP_USAGE, APP_STORE_ENGAGEMENT, COMMERCE, FRAMEWORK_USAGE, PERFORMANCE. Raw rows are paged with offset/limit. Pass groupBy to get numeric columns summed over ALL rows of the instance instead (never truncated). With no date, the newest instance is used; availableProcessingDates lists what else exists.",
         inputSchema: .object([
             "type": "object",
             "properties": .object([
@@ -38,7 +38,31 @@ enum GetAnalyticsReportTool {
                 "date": .object([
                     "type": "string",
                     "description":
-                        "Processing date in YYYY-MM-DD format. If omitted, uses the most recent available date.",
+                        "Processing date in YYYY-MM-DD format. If omitted, the newest available instance is used. Weekly instances are typically processed on a Friday and cover the week ending the previous Sunday; daily instances can carry two or three days of late-arriving rows.",
+                ]),
+                "offset": .object([
+                    "type": "integer",
+                    "description":
+                        "Row offset for paging raw rows (default: 0). Ignored when groupBy is set.",
+                    "default": 0,
+                ]),
+                "limit": .object([
+                    "type": "integer",
+                    "description":
+                        "Maximum raw rows to return, 1-1000 (default: 200). Ignored when groupBy is set.",
+                    "default": 200,
+                ]),
+                "groupBy": .object([
+                    "type": "array",
+                    "items": .object(["type": "string"]),
+                    "description":
+                        "Column names to group by, e.g. [\"Date\",\"Event\",\"Page Type\",\"Source Type\"]. Returns one row per distinct combination with numeric columns summed over ALL rows of the instance — never truncated. Names must match the report headers exactly.",
+                ]),
+                "sum": .object([
+                    "type": "array",
+                    "items": .object(["type": "string"]),
+                    "description":
+                        "With groupBy: the columns to sum. Default: every column not in groupBy whose values are all numeric, skipping ID columns. A 'Unique' column summed across dimensions overcounts and is flagged in the response.",
                 ]),
             ]),
             "required": .array([.string("appId")]),
@@ -57,6 +81,10 @@ enum GetAnalyticsReportTool {
         let reportName = arguments?["reportName"]?.stringValue
         let granularityStr = arguments?["granularity"]?.stringValue ?? "DAILY"
         let dateStr = arguments?["date"]?.stringValue
+        let offset = max(arguments?["offset"]?.intValue ?? 0, 0)
+        let limit = min(max(arguments?["limit"]?.intValue ?? 200, 1), 1000)
+        let groupBy = stringList(arguments, "groupBy")
+        let requestedSums = stringList(arguments, "sum")
 
         // Map category string to filter enum
         typealias FilterCategory =
@@ -119,7 +147,7 @@ enum GetAnalyticsReportTool {
         let reportsResponse = try await client.send(
             Resources.v1.analyticsReportRequests.id(reportRequest.id).reports.get(
                 filterCategory: [categoryFilter],
-                limit: 50
+                limit: 200
             )
         )
 
@@ -168,94 +196,233 @@ enum GetAnalyticsReportTool {
                 ], isError: true)
         }
 
-        // Step 4: Get report instances
-        var dateFilter: [String]? = nil
-        if let dateStr {
-            dateFilter = [dateStr]
-        }
-
-        let instancesResponse = try await client.send(
+        // Step 4: Collect every instance for this granularity (all pages), newest first.
+        // The API returns instances oldest-first, so "take the first" silently picks the
+        // oldest; we sort by processingDate ourselves.
+        var dated: [(date: String, instance: AnalyticsReportInstance)] = []
+        for try await page in client.pages(
             Resources.v1.analyticsReports.id(report.id).instances.get(
                 filterGranularity: [granularityFilter],
-                filterProcessingDate: dateFilter,
-                limit: 1
+                limit: 200
             )
-        )
+        ) {
+            for instance in page.data {
+                if let date = instance.attributes?.processingDate {
+                    dated.append((date, instance))
+                }
+            }
+        }
+        dated.sort { $0.date > $1.date }
+        let availableDates = dated.map(\.date)
 
-        guard let instance = instancesResponse.data.first else {
+        guard !dated.isEmpty else {
             return .init(
                 content: [
                     .text(
-                        "No report instances found for granularity '\(granularityStr)'\(dateStr.map { " and date '\($0)'" } ?? ""). Try a different date or granularity."
+                        "No report instances found for granularity '\(granularityStr)'. Try a different granularity, or wait: instances appear 24-48 hours after setup."
                     )
                 ], isError: true)
         }
 
-        // Step 5: Get segments (download URLs)
-        let segmentsResponse = try await client.send(
-            Resources.v1.analyticsReportInstances.id(instance.id).segments.get(
-                limit: 10
-            )
-        )
+        let chosen: (date: String, instance: AnalyticsReportInstance)
+        if let dateStr {
+            guard let match = dated.first(where: { $0.date == dateStr }) else {
+                let sample = availableDates.prefix(15).joined(separator: ", ")
+                return .init(
+                    content: [
+                        .text(
+                            "No instance with processingDate '\(dateStr)' for granularity '\(granularityStr)'. Available processing dates (newest first): \(sample)\(availableDates.count > 15 ? ", …" : "")"
+                        )
+                    ], isError: true)
+            }
+            chosen = match
+        } else {
+            chosen = dated[0]
+        }
 
-        guard let segment = segmentsResponse.data.first,
-            let downloadURL = segment.attributes?.url
-        else {
+        // Step 5: Collect every segment (large instances are split into several files)
+        var segmentURLs: [URL] = []
+        for try await page in client.pages(
+            Resources.v1.analyticsReportInstances.id(chosen.instance.id).segments.get(limit: 200)
+        ) {
+            segmentURLs.append(contentsOf: page.data.compactMap { $0.attributes?.url })
+        }
+
+        guard !segmentURLs.isEmpty else {
             return .init(
                 content: [.text("Error: No downloadable segments found for this report instance.")],
                 isError: true)
         }
 
-        // Step 6: Download CSV data from pre-signed URL
-        let (data, _) = try await URLSession.shared.data(from: downloadURL)
-
-        // The data is typically gzip-compressed; check for gzip magic bytes
-        let csvText: String
-        if data.count >= 2 && data[0] == 0x1f && data[1] == 0x8b {
-            // Gzip compressed — write to temp file and decompress with system gzip
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString + ".gz")
-            try data.write(to: tempURL)
-            let decompressed = try decompressGzip(fileURL: tempURL)
-            try? FileManager.default.removeItem(at: tempURL)
-            guard let text = String(data: decompressed, encoding: .utf8) else {
+        // Step 6 and 7: Download, decompress and parse each segment; concatenate rows
+        var headers: [String] = []
+        var rows: [[String]] = []
+        var headerMismatch = false
+        for (index, url) in segmentURLs.enumerated() {
+            guard let text = try await downloadText(from: url) else {
                 return .init(
-                    content: [.text("Error: Could not decode decompressed report data as text.")],
+                    content: [.text("Error: Could not decode report segment \(index + 1) of \(segmentURLs.count) as text.")],
                     isError: true)
             }
-            csvText = text
-        } else if let text = String(data: data, encoding: .utf8) {
-            csvText = text
-        } else {
-            return .init(
-                content: [.text("Error: Could not decode downloaded report data as text.")],
-                isError: true)
+            let parsed = CSVParser.parse(text)
+            if index == 0 {
+                headers = parsed.headers
+            } else if parsed.headers != headers {
+                headerMismatch = true
+            }
+            rows.append(contentsOf: parsed.rows)
         }
 
-        // Step 7: Parse CSV/TSV
-        let parsed = CSVParser.parse(csvText)
-
-        // Limit to first 100 rows to avoid huge responses
-        let maxRows = 100
-        let limitedRows = Array(parsed.rows.prefix(maxRows))
-
-        let result: [String: Any] = [
+        var result: [String: Any] = [
             "appId": appId,
             "reportName": reportName,
             "category": categoryStr,
             "granularity": granularityStr,
-            "processingDate": instance.attributes?.processingDate ?? "",
-            "headers": parsed.headers,
-            "rows": limitedRows,
-            "totalRows": parsed.rows.count,
-            "rowsReturned": limitedRows.count,
-            "truncated": parsed.rows.count > maxRows,
+            "processingDate": chosen.date,
+            "instanceCount": dated.count,
+            "availableProcessingDates": Array(availableDates.prefix(30)),
+            "segmentCount": segmentURLs.count,
+            "headers": headers,
+            "totalRows": rows.count,
         ]
+        if headerMismatch {
+            result["warning"] =
+                "Segment headers differ; rows were concatenated using the first segment's headers."
+        }
+
+        if groupBy.isEmpty {
+            let end = min(offset + limit, rows.count)
+            let pageRows = offset < end ? Array(rows[offset..<end]) : []
+            result["rows"] = pageRows
+            result["offset"] = offset
+            result["limit"] = limit
+            result["rowsReturned"] = pageRows.count
+            result["truncated"] = offset > 0 || end < rows.count
+            if end < rows.count {
+                result["nextOffset"] = end
+            }
+        } else {
+            switch aggregate(headers: headers, rows: rows, groupBy: groupBy, sum: requestedSums) {
+            case .failure(let message):
+                return .init(content: [.text("Error: \(message)")], isError: true)
+            case .success(let agg):
+                result["groupBy"] = groupBy
+                result["sum"] = agg.sumColumns
+                result["headers"] = groupBy + agg.sumColumns
+                result["rows"] = agg.rows
+                result["rowsReturned"] = agg.rows.count
+                result["truncated"] = false
+                if agg.sumColumns.contains(where: { $0.localizedCaseInsensitiveContains("unique") }) {
+                    result["note"] =
+                        "A 'Unique' column summed across dimensions overcounts unique users; treat it as an upper bound."
+                }
+            }
+        }
 
         let json = try JSONSerialization.data(
             withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         let text = String(data: json, encoding: .utf8) ?? "{}"
         return .init(content: [.text(text)])
+    }
+
+    // MARK: - Helpers
+
+    private static func stringList(_ arguments: [String: Value]?, _ key: String) -> [String] {
+        if case .array(let items)? = arguments?[key] {
+            return items.compactMap { $0.stringValue }
+        }
+        return []
+    }
+
+    private struct Aggregate {
+        let sumColumns: [String]
+        let rows: [[Any]]
+    }
+
+    private enum AggregateResult {
+        case success(Aggregate)
+        case failure(String)
+    }
+
+    /// Group rows by the given columns and sum the numeric columns. Output rows are
+    /// sorted by their group key so results are stable across calls.
+    private static func aggregate(
+        headers: [String], rows: [[String]], groupBy: [String], sum requested: [String]
+    ) -> AggregateResult {
+        var index: [String: Int] = [:]
+        for (i, h) in headers.enumerated() where index[h] == nil {
+            index[h] = i
+        }
+        let missing = (groupBy + requested).filter { index[$0] == nil }
+        if !missing.isEmpty {
+            return .failure(
+                "Unknown column(s) \(missing.joined(separator: ", ")). Report headers: \(headers.joined(separator: ", "))"
+            )
+        }
+
+        func value(_ row: [String], _ column: String) -> String {
+            let i = index[column]!
+            return i < row.count ? row[i] : ""
+        }
+
+        var sumColumns = requested
+        if sumColumns.isEmpty {
+            sumColumns = headers.filter { h in
+                !groupBy.contains(h)
+                    && !isIdentifierColumn(h)
+                    && rows.contains { !value($0, h).isEmpty }
+                    && rows.allSatisfy { r in
+                        let v = value(r, h)
+                        return v.isEmpty || Double(v) != nil
+                    }
+            }
+            if sumColumns.isEmpty {
+                return .failure(
+                    "No numeric columns to sum; pass sum explicitly. Report headers: \(headers.joined(separator: ", "))"
+                )
+            }
+        }
+
+        var totals: [[String]: [Double]] = [:]
+        for row in rows {
+            let key = groupBy.map { value(row, $0) }
+            var acc = totals[key] ?? Array(repeating: 0, count: sumColumns.count)
+            for (j, column) in sumColumns.enumerated() {
+                if let v = Double(value(row, column)) {
+                    acc[j] += v
+                }
+            }
+            totals[key] = acc
+        }
+
+        let keys = totals.keys.sorted { $0.lexicographicallyPrecedes($1) }
+        let outRows: [[Any]] = keys.map { key in
+            let sums: [Any] = totals[key]!.map { v in
+                v == v.rounded() && abs(v) < 1e15 ? Int(v) as Any : v as Any
+            }
+            return key.map { $0 as Any } + sums
+        }
+        return .success(Aggregate(sumColumns: sumColumns, rows: outRows))
+    }
+
+    /// Numeric-looking ID columns (e.g. "App Apple Identifier") must never be summed.
+    private static func isIdentifierColumn(_ header: String) -> Bool {
+        let h = header.lowercased()
+        return h.contains("identifier") || h == "id" || h.hasSuffix(" id") || h.hasSuffix("_id")
+    }
+
+    /// Download a segment and return its text, decompressing gzip when needed.
+    private static func downloadText(from url: URL) async throws -> String? {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        if data.count >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + ".gz")
+            try data.write(to: tempURL)
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+            let decompressed = try decompressGzip(fileURL: tempURL)
+            return String(data: decompressed, encoding: .utf8)
+        }
+        return String(data: data, encoding: .utf8)
     }
 
     /// Decompress gzip file using system gzip binary

@@ -86,6 +86,13 @@ Analytics reports require a one-time setup, then a 24-48 hour wait for data:
 3. get_analytics_report     → download a specific report by name
 ```
 
+`get_analytics_report` details:
+
+- **Newest instance by default.** Omit `date` and the most recent processing date is used; the response lists `availableProcessingDates` (newest first) and `instanceCount`. Weekly instances are typically processed on a Friday and cover the week ending the previous Sunday.
+- **Paging.** Raw rows are paged with `offset` and `limit` (default 200, max 1000); `truncated` and `nextOffset` tell you when to fetch more.
+- **Totals without paging.** Pass `groupBy` (e.g. `["Date","Event","Page Type","Source Type"]`) to get numeric columns summed over every row of the instance; `sum` picks the columns (default: all numeric ones). A summed `Unique Counts` column overcounts across dimensions and is flagged.
+- **All segments.** Large instances are split into several files; every segment is downloaded and concatenated (`segmentCount`).
+
 `get_perf_metrics` and `get_diagnostics` work immediately with no setup required.
 
 ### Sales & Finance

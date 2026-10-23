@@ -34,7 +34,7 @@ All write tools support `dryRun: true` and return old/new values for confirmatio
 - `GetPerfMetricsTool` — calls `perfPowerMetrics` API for iOS performance/power data with regression insights
 - `GetDiagnosticsTool` — fetches diagnostic signatures from builds, auto-resolves latest valid build
 - `SetupAnalyticsReportsTool` — creates ONGOING analytics report requests (one-time prerequisite)
-- `GetAnalyticsReportTool` — 5-step API chain: finds report request → lists reports → gets instances → gets segments → downloads & parses CSV
+- `GetAnalyticsReportTool` — API chain: finds report request → lists reports → lists ALL instances (paged) and picks the newest unless `date` is given → downloads EVERY segment → parses and concatenates CSV. Raw rows page with `offset`/`limit`; `groupBy`/`sum` return summed totals over all rows (never truncated). Instances come back oldest-first from the API, so never take `.first` without sorting.
 
 **In-App Event tools:**
 - `ListAppEventsTool` — lists events for an app with nested localizations, optional eventState filter (client-side)
